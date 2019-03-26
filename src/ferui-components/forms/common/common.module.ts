@@ -10,6 +10,7 @@ import { Ipv4AddressValidatorDirective } from './validators/ipv4-address-validat
 import { Ipv6AddressValidatorDirective } from './validators/ipv6-address-validator.directive';
 import { IpAddressValidatorDirective } from './validators/ip-address-validator.directive';
 import { EmailValidatorDirective } from './validators/email-validator';
+import { FuiDatetimeModelTypes } from './datetime-model-types.enum';
 
 @NgModule({
   imports: [CommonModule, FuiHostWrappingModule],

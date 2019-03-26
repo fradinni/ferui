@@ -19,8 +19,6 @@ import { DemoComponent } from '../utils/demo.component';
 import { DemoPageComponent } from '../utils/demo-page.component';
 
 export const FUI_DEMO_FROMS_DIRECTIVES: Type<any>[] = [
-  DemoComponent,
-  DemoPageComponent,
   DefaultTemplateWrapper,
   DefaultTemplateContent,
   DefaultComponent,

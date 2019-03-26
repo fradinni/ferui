@@ -14,6 +14,6 @@ export class DemoComponentData {
     this.source = data.source;
     this.models = data.models;
     this.params = data.params || {};
-    this.canDisable = !!data.canDisable;
+    this.canDisable = data.hasOwnProperty('canDisable') ? data.canDisable : false;
   }
 }

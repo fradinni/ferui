@@ -1,5 +1,7 @@
-import { AfterContentInit, Component, ContentChildren, Input, QueryList } from '@angular/core';
+import { AfterContentInit, AfterViewInit, Component, ContentChildren, Input, QueryList, ViewChild } from '@angular/core';
 import { DemoComponent } from './demo.component';
+import { NgForm } from '@angular/forms';
+import { DemoComponentData } from './demo-component-data';
 
 /**
  * Class:  Demo-page.component.ts
@@ -23,27 +25,31 @@ import { DemoComponent } from './demo.component';
   <p class="mt-4">Filters :
     <button class="btn btn-sm btn-info" *ngIf="canDisable" (click)="setDisable()">Toggle Disabled ({{disabled ? 'true' : 'false'}})</button>
     <button class="btn btn-sm btn-info ml-2" (click)="toggleAllCodes()">Toggle all code</button>
-    <button class="btn btn-sm btn-info ml-2" *ngIf="canToggleResults" (click)="toggleAllResults()">Toggle all results</button>
+    <button class="btn btn-sm btn-info ml-2" (click)="toggleAllResults()">Toggle all results</button>
+    <button class="btn btn-sm btn-info ml-2" (click)="hideAllCodeAndResults()">Hide all codes and results</button>
   </p>
-  <ng-content></ng-content>`,
+  <form #demoForm="ngForm">
+    <demo-component *ngFor="let example of examples" [componentData]="example" [form]="demoForm" [demoComponents]="demoComponents"></demo-component>
+    <div class="footer">
+      <button class="btn btn-primary" [disabled]="!demoForm.form.valid" type="submit">Submit</button>
+      <button class="btn btn-success" type="button" (click)="validate()">Validate</button>
+      <button class="btn btn-light" type="button" (click)="demoForm.reset()">Reset</button>
+    </div>
+  </form>`,
 })
 export class DemoPageComponent implements AfterContentInit {
-  @ContentChildren(DemoComponent) demoComponents: QueryList<DemoComponent>;
+  @Input() examples: Array<DemoComponentData>;
   @Input() pageTitle: string = 'Demo Page';
   @Input() disabled: boolean = false;
+  @ViewChild('demoForm') form: NgForm;
+  demoComponents: Array<DemoComponent> = [];
   canDisable: boolean = false;
-  canToggleResults: boolean = false;
 
   ngAfterContentInit() {
     this.canDisable =
       this.disabled === true ||
       this.demoComponents.find(cmp => {
         return cmp.canDisable;
-      }) !== undefined;
-
-    this.canToggleResults =
-      this.demoComponents.find(cmp => {
-        return cmp.models !== undefined && Object.keys(cmp.models).length > 0;
       }) !== undefined;
   }
 
@@ -59,10 +65,26 @@ export class DemoPageComponent implements AfterContentInit {
     });
   }
 
+  hideAllCodeAndResults() {
+    this.demoComponents.forEach(cmp => {
+      cmp.hideCodeAndResults();
+    });
+  }
+
   setDisable() {
     this.disabled = !this.disabled;
     this.demoComponents.forEach(cmp => {
       cmp.disable(this.disabled);
     });
+  }
+
+  validate(): void {
+    this.form.form.markAsTouched();
+    for (const controlKey in this.form.controls) {
+      if (this.form.controls.hasOwnProperty(controlKey)) {
+        this.form.controls[controlKey].markAsTouched();
+        this.form.controls[controlKey].updateValueAndValidity();
+      }
+    }
   }
 }

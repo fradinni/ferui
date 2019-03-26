@@ -1,0 +1,24 @@
+:host(.demo-component) {
+  .fui-widget {
+    margin: 40px 20px;
+  }
+
+  .demo-component-header {
+    min-height: 50px;
+
+    .toggle-code-and-models {
+      cursor: pointer;
+      fill: white;
+    }
+  }
+
+  .code-and-models {
+    margin: 10px;
+    .nav-item {
+      cursor: pointer;
+    }
+    pre {
+      border-top: none;
+    }
+  }
+}

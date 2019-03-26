@@ -1,19 +1,9 @@
-import {
-  AfterContentInit,
-  AfterViewInit,
-  Compiler,
-  Component,
-  Input,
-  NgModule,
-  ViewChild,
-  ViewContainerRef,
-} from '@angular/core';
+import { AfterViewInit, Compiler, Component, Input, NgModule, NgModuleFactory, OnInit, ViewChild } from '@angular/core';
 import { FeruiModule } from '@ferui/components';
-import { FormsModule } from '@angular/forms';
-import { CommonModule } from '@angular/common';
-import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
+import { FormsModule, NgForm } from '@angular/forms';
 import * as jsBeautify from 'js-beautify';
 import { DemoComponentData } from './demo-component-data';
+import { CommonModule } from '@angular/common';
 
 /**
  * Class:  Demo.component.ts
@@ -62,36 +52,53 @@ import { DemoComponentData } from './demo-component-data';
  */
 @Component({
   selector: 'demo-component',
+  styleUrls: ['./demo-component.scss'],
+  host: {
+    '[class.demo-component]': 'true',
+  },
   template: `
-    <div class="row">
-      <div class="col-md-6 col-lg-6 col-xl-6 col-sm-12">
-        <h5 class="mt-3">{{title}} <span *ngIf="canDisable && models">(<button class="btn btn-link p-0" (click)="disable(!this.params.disabled)">{{ this.params.disabled ? 'Enable' : 'Disable'}}</button>)</span></h5>
-        <div #demo></div>
-      </div>
-      <div class="col-md-6 col-lg-6 col-xl-6 col-sm-12" *ngIf="sourceCode && !models">
-        <h5 class="mt-3">Code (<button class="btn btn-link p-0" (click)="toggleCode()">{{ codeHidden ? 'View Code' : 'Hide Code'}}</button>)</h5>
-        <pre *ngIf="!codeHidden"><code [highlight]="codeBlock"></code></pre>
-      </div>
-    </div>
-    <!--Second row if models are provided and results are available-->
-    <div class="row pt-3" *ngIf="sourceCode && models">
-      <div class="col-md-6 col-lg-6 col-xl-6 col-sm-12">
-        <p>Data (<button class="btn btn-link p-0" (click)="toggleResult()">{{ resultHidden ? 'View Data' : 'Hide Data'}}</button>)</p>
-        <pre *ngIf="!resultHidden"><code [highlight]="resultsData() | json"></code></pre>
-      </div>
-      <div class="col-md-6 col-lg-6 col-xl-6 col-sm-12">
-        <p>Code (<button class="btn btn-link p-0" (click)="toggleCode()">{{ codeHidden ? 'View Code' : 'Hide Code'}}</button>)</p>
-        <pre *ngIf="!codeHidden"><code [highlight]="codeBlock"></code></pre>
-      </div>
-    </div>`,
+    <fui-widget>
+      <fui-widget-header class="demo-component-header bg-dark">
+        <fui-widget-title><span class="text-white font-weight-normal">{{title}}</span></fui-widget-title>
+        <fui-widget-actions>
+          <clr-icon class="toggle-code-and-models" [attr.shape]="resultHidden && codeHidden ? 'eye'  : 'eye-hide'" (click)="resultHidden && codeHidden ? toggleCode() : hideCodeAndResults()"></clr-icon>
+        </fui-widget-actions>
+      </fui-widget-header>
+      <fui-widget-body class="p-0">
+        <!--  Code and models -->
+        <div class="code-and-models" *ngIf="!codeHidden || !resultHidden">
+          <ul class="nav nav-tabs">
+            <li class="nav-item" (click)="showCode()">
+              <a class="nav-link" [ngClass]="{active: !codeHidden}">Code</a>
+            </li>
+            <li class="nav-item" (click)="showResult()">
+              <a class="nav-link" [ngClass]="{active: !resultHidden}">Results</a>
+            </li>
+          </ul>
+          <div class="code-and-models-container">
+            <pre *ngIf="!codeHidden" style="max-height: 250px"><code [highlight]="codeBlock"></code></pre>
+            <pre *ngIf="!resultHidden"><code [highlight]="resultsData() | json"></code></pre>
+          </div>
+        </div>
+        <!-- Separator -->
+        <hr *ngIf="!codeHidden || !resultHidden">
+        <!-- Component -->
+        <div class="p-3">
+          <ng-container *ngComponentOutlet="dynamicComponent; ngModuleFactory: dynamicModule;"></ng-container>
+        </div>
+      </fui-widget-body>
+    </fui-widget>`,
 })
-export class DemoComponent implements AfterViewInit, AfterContentInit {
+export class DemoComponent implements OnInit, AfterViewInit {
+  @Input() form: NgForm;
   @Input() componentData: DemoComponentData;
+  @Input() demoComponents: Array<DemoComponent>;
   @Input() disabled: boolean = false;
-  @Input() codeHidden: boolean = false;
-  @Input() resultHidden: boolean = false;
-  @ViewChild('demo', { read: ViewContainerRef })
-  _vcr;
+  @Input() codeHidden: boolean = true;
+  @Input() resultHidden: boolean = true;
+  dynamicComponent: any;
+  dynamicModule: NgModuleFactory<any>;
+  childrenForms: Array<NgForm> = [];
 
   title: string;
   sourceCode: string;
@@ -102,7 +109,7 @@ export class DemoComponent implements AfterViewInit, AfterContentInit {
 
   constructor(private _compiler: Compiler) {}
 
-  ngAfterContentInit() {
+  ngOnInit(): void {
     this.title = this.componentData.title;
     this.sourceCode = this.componentData.source;
     this.models = this.componentData.models;
@@ -115,56 +122,113 @@ export class DemoComponent implements AfterViewInit, AfterContentInit {
 
     const codeBlocks = this.extractCodeBlocks(this.sourceCode);
     this.codeBlock = jsBeautify.html(codeBlocks.length > 0 ? codeBlocks.join('') : this.sourceCode);
+
+    this.dynamicComponent = this.createNewComponent(this.componentData, this.childrenForms);
+    this.dynamicModule = this._compiler.compileModuleSync(this.createComponentModule(this.dynamicComponent));
+
+    this.demoComponents.push(this);
   }
 
   ngAfterViewInit() {
-    const _params = this.params;
-    const _models = this.models;
-
-    const tmpCmp = Component({ template: this.sourceCode })(
-      class DemoSubComponent {
-        public params: object = _params;
-        public models: object = _models;
+    setTimeout(() => {
+      this.childrenForms.forEach(form => {
+        // @ts-ignore
+        form._directives.forEach(dir => {
+          this.form.addControl(dir);
+        });
+      });
+      // Trigger the updateValueAndValidity() method on parent form after adding controls.
+      for (const controlKey in this.form.controls) {
+        if (this.form.controls.hasOwnProperty(controlKey)) {
+          this.form.controls[controlKey].updateValueAndValidity();
+        }
       }
-    );
-
-    const tmpModule = NgModule({
-      imports: [BrowserAnimationsModule, CommonModule, FormsModule, FeruiModule],
-      declarations: [tmpCmp],
-    })(class {});
-
-    this._compiler.compileModuleAndAllComponentsAsync(tmpModule).then(factories => {
-      const f = factories.componentFactories[factories.componentFactories.length - 1];
-      this._vcr.createComponent(f);
     });
   }
 
   resultsData() {
     const data: any = {};
-    if (this.canDisable) {
-      data.params = { disabled: this.params.disabled };
-    }
     data.models = {};
-    for (const modelName in this.models) {
-      if (this.models.hasOwnProperty(modelName)) {
-        data.models[modelName] = this.models[modelName];
+    for (const modelName of Object.keys(this.models)) {
+      data.models[modelName] = this.models[modelName];
+    }
+    if (this.params && Object.keys(this.params).length) {
+      data.params = this.params;
+      if (!this.canDisable) {
+        delete this.params.disabled;
       }
     }
     return data;
   }
 
+  concatResultModels(models): Array<any> {
+    const results: Array<any> = [];
+    for (const modelName of models) {
+      results.push({
+        'field-name': modelName,
+        value: models[modelName],
+      });
+    }
+    return results;
+  }
+
+  showCode() {
+    this.resultHidden = true;
+    this.codeHidden = false;
+  }
+
+  showResult() {
+    this.codeHidden = true;
+    this.resultHidden = false;
+  }
+
   toggleCode() {
     this.codeHidden = !this.codeHidden;
+    this.resultHidden = !this.codeHidden;
   }
 
   toggleResult() {
     this.resultHidden = !this.resultHidden;
+    this.codeHidden = !this.resultHidden;
+  }
+
+  hideCodeAndResults() {
+    this.resultHidden = true;
+    this.codeHidden = true;
   }
 
   disable(disabled: boolean) {
     if (this.canDisable) {
       this.params.disabled = disabled;
     }
+  }
+
+  protected createComponentModule(componentType: any) {
+    @NgModule({
+      imports: [CommonModule, FormsModule, FeruiModule],
+      declarations: [componentType],
+      entryComponents: [componentType],
+    })
+    class RuntimeComponentModule {}
+    return RuntimeComponentModule;
+  }
+
+  protected createNewComponent(example: DemoComponentData, childrenForms: Array<NgForm>) {
+    example.source = '<form #dynamicForm="ngForm">' + example.source + '</form>';
+    @Component({
+      selector: 'dynamic-component',
+      template: example.source,
+    })
+    class DynamicComponent implements OnInit {
+      @ViewChild('dynamicForm') form: NgForm;
+      public params = example.params;
+      public models = example.models;
+
+      ngOnInit(): void {
+        childrenForms.push(this.form);
+      }
+    }
+    return DynamicComponent;
   }
 
   /**
